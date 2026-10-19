@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Profile Manager</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#273449;--line:#334155;--txt:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent2:#0ea5e9;--good:#22c55e;--bad:#f87171;--chip:#0b2540;}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b1220,#0f172a);color:var(--txt);min-height:100vh}
+header{background:rgba(15,23,42,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:30}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.3px}
+header .sub{color:var(--muted);font-size:13px}
+.spacer{flex:1}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s}
+.navlink{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s;text-decoration:none;display:inline-flex;align-items:center}
+.navlink:hover{border-color:var(--accent);color:#fff}
+button:hover{border-color:var(--accent);color:#fff}
+button.primary{background:linear-gradient(90deg,var(--accent2),var(--accent));border:none;color:#022}
+button.primary:hover{filter:brightness(1.08)}
+button.danger{background:transparent;border-color:#7f1d1d;color:#fca5a5}
+button.danger:hover{background:#2a1414;border-color:var(--bad);color:#fff}
+button.ghost{background:transparent}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.search input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14px}
+.count-note{color:var(--muted);font-size:13px}
+.status{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:26px 18px;text-align:center;color:var(--muted);font-size:14px}
+.status.err{border-color:#7f1d1d;color:#fca5a5}
+.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:calc(100vh - 210px)}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:12px 14px;border-bottom:1px solid var(--line);background-color:var(--panel);background-image:linear-gradient(90deg,rgba(56,189,248,.06),transparent);position:sticky;top:0;z-index:5}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(56,189,248,.04)}
+.nm{font-weight:700}
+.badge{display:inline-block;font-size:11px;font-weight:700;color:#022;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:999px;padding:2px 10px}
+.badge.pitcher{background:linear-gradient(90deg,#fb923c,#f97316);color:#fff}
+.mut{color:var(--muted)}
+.rowacts{display:flex;gap:8px;justify-content:flex-end}
+.rowacts button{padding:6px 12px;font-size:12px}
+thead th.sortable{cursor:pointer;user-select:none}
+thead th.sortable:hover{color:var(--accent)}
+thead th .arrow{margin-left:5px;font-size:10px;opacity:.85}
+.cards{display:none}
+@media(max-width:720px){
+  .tablewrap{display:none}
+  .cards{display:flex;flex-direction:column;gap:12px}
+  .pcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .pcard .top{display:flex;align-items:center;gap:10px}
+  .pcard .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin:10px 0 12px;font-size:13px}
+  .pcard .kv b{color:var(--muted);font-weight:600}
+  .pcard .rowacts{justify-content:flex-start}
+}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:22px}
+.modal h3{margin:0 0 4px;font-size:18px}
+.modal .sub2{color:var(--muted);font-size:12px;margin:0 0 14px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px 2px;font-weight:600}
+.field input,.field select{width:100%;background:#0b1220;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px 11px;font-size:14px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field .warn{color:#fbbf24;font-size:11px;margin-top:5px;display:none}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg .opt{padding:8px 18px;border:1px solid var(--line);border-radius:999px;background:#0b1220;font-size:13px;cursor:pointer;user-select:none;font-weight:600}
+.seg .opt.active{background:var(--chip);border-color:var(--accent);color:#fff}
+.acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--good);color:#052e12;padding:11px 20px;border-radius:10px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.show{opacity:1}
+.toast.bad{background:var(--bad);color:#3a0a0a}
+</style>
+</head>
+<body>
+<header>
+  <h1>PROFILE MANAGER</h1>
+  <span class="sub" id="connState">Connecting…</span>
+  <div class="spacer"></div>
+  <a class="navlink" id="gotoHome" href="index.html">Home</a>
+  <a class="navlink" id="gotoStatus" href="status.html">Status</a>
+  <button id="mergeBtn">Merge</button>
+  <button class="primary" id="addBtn">+ New profile</button>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <div class="search">
+      <span class="mut">🔍</span>
+      <input type="text" id="search" placeholder="Search by name, ID or position…" autocomplete="off"/>
+    </div>
+    <span class="count-note" id="countNote"></span>
+  </div>
+
+  <div id="statusBox" class="status">Loading profiles…</div>
+
+  <div class="tablewrap" id="tableWrap" style="display:none">
+    <table>
+      <thead><tr id="headRow"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="cards" id="cards"></div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script>
+// ---- helpers ----
+function $(id){return document.getElementById(id);}
+function el(tag,props,style){var e=document.createElement(tag);if(props)Object.keys(props).forEach(function(k){e[k]=props[k];});if(style)e.style.cssText=style;return e;}
+function showToast(m,bad){var t=$('toast');t.textContent=m;t.className='toast show'+(bad?' bad':'');setTimeout(function(){t.className='toast'+(bad?' bad':'');},2000);}
+var CLASS_OPTS=(function(){var a=[];for(var y=2016;y<=2037;y++)a.push(String(y));return a;})();
+var POSITIONS=['','P','C','1B','2B','3B','SS','IF','LF','CF','RF','OF','DH','UTIL'];
+
+// ---- Status-entry / merge helpers ----
+// A profile "has entries in the Status page" when its status{} map holds at
+// least one recorded date. Such profiles are protected from deletion.
+function hasStatusEntries(r){
+  var st=r&&r.status; if(!st||typeof st!=='object') return false;
+  return Object.keys(st).some(function(k){ return st[k]!==''&&st[k]!=null; });
+}
+// Dropdown label: "1787812 - Jose Fuenmayor (C)"
+function profileLabel(r){
+  var id=String(r.player_id||r._id||'');
+  var nm=r.player_name||'(no name)';
+  var pos=r.position?(' ('+r.position+')'):'';
+  return id+' - '+nm+pos;
+}
+function parseMDY(s){ var m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(s||'').trim()); if(!m) return 0; var y=+m[3]; if(y<100)y+=2000; return new Date(y,(+m[1])-1,+m[2]).getTime(); }
+function statusOf(r){ return (r&&r.status&&typeof r.status==='object')?r.status:{}; }
+// Union of every selected profile's status dates, keeping the most recent per group.
+function mergeStatus(selected){
+  var out={};
+  selected.forEach(function(r){
+    var st=statusOf(r);
+    Object.keys(st).forEach(function(g){
+      var v=st[g]; if(v===''||v==null) return;
+      if(!out[g] || parseMDY(v)>parseMDY(out[g])) out[g]=v;
+    });
+  });
+  return out;
+}
+// Build the merged profile: profile fields DEFAULT to the primary (first) pick,
+// blanks are back-filled from the other picks, and all Status data is combined.
+function computeMergedDoc(selected){
+  var primary=selected[0]||{};
+  function pick(field){ for(var i=0;i<selected.length;i++){ var v=selected[i][field]; if(v!==''&&v!=null) return v; } return ''; }
+  return {
+    player_id:String(primary.player_id||primary._id||''),
+    player_name:(primary.player_name||pick('player_name'))||'',
+    position:(primary.position||pick('position'))||'',
+    class:(primary.class||pick('class'))||'',
+    bats:(primary.bats||pick('bats'))||'',
+    throws:(primary.throws||pick('throws'))||'',
+    dob:(primary.dob||pick('dob'))||'',
+    status:mergeStatus(selected)
+  };
+}
+
+var DB=null;         // set once Firestore is ready
+var rows=[];         // current cache of profiles
+var filterText='';
+
+// ---- sortable columns (click a header to sort, click again to flip direction) ----
+var SORT_COLS=[
+  {key:'name',     label:'Name',     get:function(r){return String(r.player_name||'');}},
+  {key:'id',       label:'ID',       get:function(r){return String(r.player_id||r._id||'');}},
+  {key:'position', label:'Position', get:function(r){return String(r.position||'');}},
+  {key:'class',    label:'Class',    get:function(r){return String(r.class||'');}},
+  {key:'bats',     label:'Bats',     get:function(r){return String(r.bats||'');}},
+  {key:'throws',   label:'Throws',   get:function(r){return String(r.throws||'');}},
+  {key:'dob',      label:'DOB',      get:function(r){return String(r.dob||'');}}
+];
+var sortState={key:'name',dir:'asc'};
+function colByKey(k){ for(var i=0;i<SORT_COLS.length;i++){ if(SORT_COLS[i].key===k) return SORT_COLS[i]; } return SORT_COLS[0]; }
+function sortList(list){
+  var col=colByKey(sortState.key);
+  return list.sort(function(a,b){
+    var va=col.get(a), vb=col.get(b);
+    // blanks always sort last, regardless of direction
+    if(!va && !vb) return String(a.player_name||'').localeCompare(String(b.player_name||''));
+    if(!va) return 1;
+    if(!vb) return -1;
+    var c=va.localeCompare(vb,undefined,{numeric:true,sensitivity:'base'});
+    if(c===0) c=String(a.player_name||'').localeCompare(String(b.player_name||''));
+    return sortState.dir==='asc'?c:-c;
+  });
+}
+function buildHead(){
+  var hr=$('headRow'); if(!hr) return; hr.innerHTML='';
+  SORT_COLS.forEach(function(col){
+    var th=el('th',{className:'sortable'});
+    th.appendChild(document.createTextNode(col.label));
+    if(sortState.key===col.key){ th.appendChild(el('span',{className:'arrow',textContent:sortState.dir==='asc'?'\u25b2':'\u25bc'})); }
+    th.addEventListener('click',function(){
+      if(sortState.key===col.key){ sortState.dir=(sortState.dir==='asc')?'desc':'asc'; }
+      else { sortState.key=col.key; sortState.dir='asc'; }
+      render();
+    });
+    hr.appendChild(th);
+  });
+  hr.appendChild(el('th',{textContent:'Upload HSV'}));
+  hr.appendChild(el('th',{textContent:'Play HSV'}));
+  hr.appendChild(el('th',{textContent:'Actions'},'text-align:right'));
+}
+
+// ---- rendering ----
+function matches(r){
+  if(!filterText) return true;
+  var q=filterText.toLowerCase();
+  return String(r.player_name||'').toLowerCase().indexOf(q)>=0
+      || String(r.player_id||r._id||'').toLowerCase().indexOf(q)>=0
+      || String(r.position||'').toLowerCase().indexOf(q)>=0;
+}
+function render(){
+  var status=$('statusBox'),tw=$('tableWrap'),cards=$('cards');
+  if(!DB){ return; }
+  var list=sortList(rows.filter(matches));
+  $('countNote').textContent=rows.length?(list.length+' of '+rows.length+' profile'+(rows.length!==1?'s':'')):'';
+  if(!rows.length){
+    tw.style.display='none';cards.style.display='';cards.innerHTML='';
+    status.style.display='';status.className='status';status.textContent='No profiles yet. Profiles you create in the data-entry tool show up here, or add one now.';
+    return;
+  }
+  if(!list.length){
+    tw.style.display='none';cards.innerHTML='';
+    status.style.display='';status.className='status';status.textContent='No profiles match \u201c'+filterText+'\u201d.';
+    return;
+  }
+  status.style.display='none';
+  // table (wide screens)
+  buildHead();
+  tw.style.display='';
+  var tb=$('tbody');tb.innerHTML='';
+  list.forEach(function(r){
+    var tr=el('tr');
+    tr.appendChild(el('td',{className:'',textContent:''},'')).appendChild(el('span',{className:'nm',textContent:r.player_name||'(no name)'}));
+    tr.appendChild(el('td',{textContent:r.player_id||r._id||''}));
+    var tdPos=el('td');if(r.position){var bcls='badge'+(r.position==='P'?' pitcher':'');tdPos.appendChild(el('span',{className:bcls,textContent:r.position}));}else{tdPos.appendChild(el('span',{className:'mut',textContent:'\u2014'}));}tr.appendChild(tdPos);
+    tr.appendChild(el('td',{textContent:r.class||'\u2014'}));
+    tr.appendChild(el('td',{textContent:r.bats||'\u2014'}));
+    tr.appendChild(el('td',{textContent:r.throws||'\u2014'}));
+    tr.appendChild(el('td',{textContent:r.dob||'\u2014'}));
+    var tdU=el('td');tdU.appendChild(uploadButton(r));tr.appendChild(tdU);
+    var tdP=el('td');tdP.appendChild(playControl(r));tr.appendChild(tdP);
+    var tdA=el('td');var wrap=el('div',{className:'rowacts'});
+    var eb=el('button',{className:'ghost',textContent:'Edit'});eb.addEventListener('click',function(){openEdit(r);});
+    var db=el('button',{className:'danger',textContent:'Delete'});
+    if(hasStatusEntries(r)){ db.disabled=true; db.title='This profile has Status entries and can\u2019t be deleted.'; db.style.opacity='.5'; db.style.cursor='not-allowed'; }
+    else { db.addEventListener('click',function(){openDelete(r);}); }
+    wrap.appendChild(eb);wrap.appendChild(db);tdA.appendChild(wrap);tr.appendChild(tdA);
+    tb.appendChild(tr);
+  });
+  // cards (narrow screens)
+  cards.innerHTML='';
+  list.forEach(function(r){
+    var c=el('div',{className:'pcard'});
+    var top=el('div',{className:'top'});top.appendChild(el('span',{className:'nm',textContent:r.player_name||'(no name)'}));
+    if(r.position){var bcls='badge'+(r.position==='P'?' pitcher':'');top.appendChild(el('span',{className:bcls,textContent:r.position}));}
+    c.appendChild(top);
+    var kv=el('div',{className:'kv'});
+    function add(label,val){kv.appendChild(el('b',{textContent:label}));kv.appendChild(el('span',{textContent:val||'\u2014'}));}
+    add('ID',r.player_id||r._id);add('Class',r.class);add('Bats',r.bats);add('Throws',r.throws);add('DOB',r.dob);
+    c.appendChild(kv);
+    var hsvRow=el('div',{},'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px');
+    hsvRow.appendChild(uploadButton(r));hsvRow.appendChild(playControl(r));
+    c.appendChild(hsvRow);
+    var wrap=el('div',{className:'rowacts'});
+    var eb=el('button',{className:'ghost',textContent:'Edit'});eb.addEventListener('click',function(){openEdit(r);});
+    var db=el('button',{className:'danger',textContent:'Delete'});
+    if(hasStatusEntries(r)){ db.disabled=true; db.title='This profile has Status entries and can\u2019t be deleted.'; db.style.opacity='.5'; db.style.cursor='not-allowed'; }
+    else { db.addEventListener('click',function(){openDelete(r);}); }
+    wrap.appendChild(eb);wrap.appendChild(db);c.appendChild(wrap);
+    cards.appendChild(c);
+  });
+}
+
+// ---- modals ----
+function closeModal(){$('overlay').classList.remove('show');$('modal').innerHTML='';}
+function openModalNode(node){var md=$('modal');md.innerHTML='';md.appendChild(node);$('overlay').classList.add('show');}
+
+function fieldText(label,val,placeholder){
+  var f=el('div',{className:'field'});f.appendChild(el('label',{textContent:label}));
+  var i=el('input');i.type='text';i.value=val||'';if(placeholder)i.placeholder=placeholder;
+  f.appendChild(i);f._input=i;return f;
+}
+function fieldSelect(label,val,opts){
+  var f=el('div',{className:'field'});f.appendChild(el('label',{textContent:label}));
+  var s=el('select');var have=false;
+  opts.forEach(function(o){var op=el('option');op.value=o;op.textContent=(o===''?'\u2014':o);if(String(o)===String(val||'')){op.selected=true;have=true;}s.appendChild(op);});
+  if(!have&&val){var op=el('option');op.value=val;op.textContent=val;op.selected=true;s.appendChild(op);}
+  f.appendChild(s);f._input=s;return f;
+}
+function fieldSeg(label,val,opts){
+  var f=el('div',{className:'field'});f.appendChild(el('label',{textContent:label}));
+  var seg=el('div',{className:'seg'});var state={v:val||''};
+  opts.forEach(function(o){
+    var b=el('div',{className:'opt'+(state.v===o?' active':''),textContent:o});
+    b.addEventListener('click',function(){state.v=(state.v===o)?'':o;seg.querySelectorAll('.opt').forEach(function(x){x.classList.toggle('active',x.textContent===state.v);});});
+    seg.appendChild(b);
+  });
+  f.appendChild(seg);f._state=state;return f;
+}
+function fieldDate(label,val){
+  var f=el('div',{className:'field'});f.appendChild(el('label',{textContent:label}));
+  var i=el('input');i.type='date';i.value=val||'';i.style.colorScheme='dark';
+  f.appendChild(i);f._input=i;return f;
+}
+
+function openEdit(r){ profileForm(r); }
+function openNew(){ profileForm(null); }
+
+function profileForm(r){
+  var isNew=!r;
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:isNew?'New profile':'Edit profile'}));
+  root.appendChild(el('p',{className:'sub2',textContent:isNew?'Create a new player profile.':'Update this player\u2019s details.'}));
+  var fName=fieldText('Name',r?r.player_name:'','Full name');
+  var fId=fieldText('ID (Player ID Cubs)',r?(r.player_id||r._id):'','e.g. 129393');
+  var idWarn=el('div',{className:'warn',textContent:'Changing the ID moves this profile to the new ID — the existing record is updated, not duplicated.'});
+  fId.appendChild(idWarn);
+  var oldId=r?String(r.player_id||r._id||''):'';
+  fId._input.addEventListener('input',function(){idWarn.style.display=(!isNew&&fId._input.value.trim()!==oldId)?'block':'none';});
+  var fPos=fieldSelect('Position',r?r.position:'',POSITIONS);
+  var fClass=fieldSelect('Class',r?r.class:'',[''].concat(CLASS_OPTS));
+  var fBats=fieldSeg('Bats',r?r.bats:'',['R','L']);
+  var fThrows=fieldSeg('Throws',r?r.throws:'',['R','L']);
+  var fDob=fieldDate('Date of birth',r?r.dob:'');
+  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);
+  var acts=el('div',{className:'acts'});
+  var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
+  var save=el('button',{className:'primary',textContent:isNew?'Create':'Save changes'});
+  acts.appendChild(cancel);acts.appendChild(save);root.appendChild(acts);
+  save.addEventListener('click',function(){
+    var name=fName._input.value.trim();
+    var newId=fId._input.value.trim();
+    if(!newId){ showToast('An ID is required',true); return; }
+    var doc={
+      player_id:newId,
+      player_name:name,
+      position:fPos._input.value||'',
+      class:fClass._input.value||'',
+      bats:fBats._state.v||'',
+      throws:fThrows._state.v||'',
+      dob:fDob._input.value||''
+    };
+    if(!DB){ showToast('Not connected to the database',true); return; }
+    // duplicate-id guard when creating or changing the ID
+    if(newId!==oldId && rows.some(function(x){return String(x.player_id||x._id||'')===newId;})){
+      showToast('A profile with ID '+newId+' already exists',true); return;
+    }
+    save.disabled=true;
+    Promise.resolve(DB.upsert(newId,doc)).then(function(){
+      if(!isNew && oldId && oldId!==newId){ return DB.remove(oldId); }
+    }).then(function(){
+      closeModal();
+      showToast(isNew?'Profile created':'Profile saved');
+    }).catch(function(e){ save.disabled=false; showToast('Save failed: '+(e&&e.message||e),true); });
+  });
+  openModalNode(root);
+  fName._input.focus();
+}
+
+function openDelete(r){
+  var id=String(r.player_id||r._id||'');
+  // Guard: profiles with Status-page entries can't be deleted.
+  if(hasStatusEntries(r)){
+    var rootB=el('div');
+    rootB.appendChild(el('h3',{textContent:'Can\u2019t delete this profile'}));
+    rootB.appendChild(el('p',{className:'sub2',textContent:'This profile has entries on the Status page, so it can\u2019t be deleted. Clear its Status dates first if you really need to remove it.'}));
+    var boxB=el('div',{className:'field'});
+    boxB.appendChild(el('div',{textContent:(r.player_name||'(no name)')+'  \u2014  ID '+id},'font-size:15px;font-weight:700;padding:10px 12px;background:#0b1220;border:1px solid var(--line);border-radius:8px'));
+    rootB.appendChild(boxB);
+    var actsB=el('div',{className:'acts'});
+    var okB=el('button',{className:'ghost',textContent:'Close'});okB.addEventListener('click',closeModal);
+    actsB.appendChild(okB);rootB.appendChild(actsB);
+    openModalNode(rootB);
+    return;
+  }
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:'Delete profile'}));
+  root.appendChild(el('p',{className:'sub2',textContent:'This permanently removes the profile from the database. This cannot be undone.'}));
+  var box=el('div',{className:'field'});
+  box.appendChild(el('div',{textContent:(r.player_name||'(no name)')+'  \u2014  ID '+id},'font-size:15px;font-weight:700;padding:10px 12px;background:#0b1220;border:1px solid var(--line);border-radius:8px'));
+  root.appendChild(box);
+  var acts=el('div',{className:'acts'});
+  var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
+  var del=el('button',{className:'danger',textContent:'Delete profile'});
+  acts.appendChild(cancel);acts.appendChild(del);root.appendChild(acts);
+  del.addEventListener('click',function(){
+    if(!DB){ showToast('Not connected to the database',true); return; }
+    del.disabled=true;
+    Promise.resolve(DB.remove(id)).then(function(){ closeModal(); showToast('Profile deleted'); })
+      .catch(function(e){ del.disabled=false; showToast('Delete failed: '+(e&&e.message||e),true); });
+  });
+  openModalNode(root);
+}
+
+// ---- merge profiles ----
+// A searchable dropdown listing every profile as "ID - Name (Pos)". Typing
+// filters the list; picking an option stores that profile's id.
+function buildMergeSelect(preId){
+  var wrap=el('div',{},'position:relative;flex:1');
+  var input=el('input');input.type='text';input.placeholder='Search by ID, name or position\u2026';input.autocomplete='off';
+  input.style.cssText='width:100%;background:#0b1220;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px 11px;font-size:14px';
+  var menu=el('div',{},'position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:240px;overflow:auto;display:none;box-shadow:0 12px 30px rgba(0,0,0,.45)');
+  var state={id:''}; var onChangeCb=null;
+  function pick(r){ state.id=String(r.player_id||r._id||''); input.value=profileLabel(r); menu.style.display='none'; if(onChangeCb) onChangeCb(); }
+  function open(filter){
+    menu.innerHTML=''; var q=(filter||'').toLowerCase();
+    var list=rows.filter(function(r){ return !q || profileLabel(r).toLowerCase().indexOf(q)>=0; });
+    if(!list.length){ menu.appendChild(el('div',{textContent:'No matches'},'padding:10px 12px;color:var(--muted);font-size:13px')); }
+    list.slice(0,80).forEach(function(r){
+      var it=el('div',{textContent:profileLabel(r)},'padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)');
+      it.addEventListener('mousedown',function(ev){ ev.preventDefault(); pick(r); });
+      it.addEventListener('mouseenter',function(){ it.style.background='rgba(56,189,248,.08)'; });
+      it.addEventListener('mouseleave',function(){ it.style.background=''; });
+      menu.appendChild(it);
+    });
+    menu.style.display='block';
+  }
+  input.addEventListener('focus',function(){ open(state.id?'':input.value); });
+  input.addEventListener('input',function(){ state.id=''; open(input.value); });
+  input.addEventListener('blur',function(){ setTimeout(function(){ menu.style.display='none'; },160); });
+  wrap.appendChild(input);wrap.appendChild(menu);
+  var api={node:wrap, getId:function(){return state.id;}, setId:function(id){ var r=rows.find(function(x){return String(x.player_id||x._id||'')===String(id);}); if(r) pick(r); }, onChange:function(fn){onChangeCb=fn;}};
+  if(preId) api.setId(preId);
+  return api;
+}
+function openMerge(){
+  if(!DB){ showToast('Not connected to the database',true); return; }
+  if(rows.length<2){ showToast('Need at least two profiles to merge',true); return; }
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:'Merge profiles'}));
+  root.appendChild(el('p',{className:'sub2',textContent:'Pick the profiles to merge. The first pick is the primary \u2014 the merged profile defaults to its details. Data from every selected profile (including Status entries) is combined.'}));
+  var holder=el('div',{});
+  var selects=[];
+  function relabel(){ selects.forEach(function(m,i){ m._line._tag.textContent=(i===0?'Primary':('#'+(i+1))); }); }
+  function addSelect(preId){
+    var msel=buildMergeSelect(preId);
+    var line=el('div',{},'display:flex;gap:8px;align-items:center;margin-bottom:10px');
+    var tag=el('span',{textContent:(selects.length===0?'Primary':('#'+(selects.length+1)))},'min-width:60px;font-size:12px;color:var(--muted);font-weight:700');
+    var rm=el('button',{className:'ghost',textContent:'\u2715'},'padding:6px 10px');
+    rm.addEventListener('click',function(){
+      var i=selects.indexOf(msel); if(i<0) return;
+      if(selects.length<=2){ showToast('Keep at least two profiles',true); return; }
+      selects.splice(i,1); holder.removeChild(line); relabel();
+    });
+    line.appendChild(tag);line.appendChild(msel.node);line.appendChild(rm);
+    msel._line=line; line._tag=tag;
+    selects.push(msel); holder.appendChild(line);
+  }
+  addSelect(); addSelect();
+  root.appendChild(holder);
+  var addRow=el('div',{},'margin:2px 0 8px');
+  var addAnother=el('button',{className:'ghost',textContent:'+ Add another player'});
+  addAnother.addEventListener('click',function(){ addSelect(); });
+  addRow.appendChild(addAnother); root.appendChild(addRow);
+  var acts=el('div',{className:'acts'});
+  var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
+  var mergeBtn=el('button',{className:'primary',textContent:'Merge'});
+  acts.appendChild(cancel);acts.appendChild(mergeBtn);root.appendChild(acts);
+  mergeBtn.addEventListener('click',function(){
+    var ids=selects.map(function(m){return m.getId();}).filter(function(x){return x;});
+    var seen={},uniq=[]; ids.forEach(function(id){ if(!seen[id]){seen[id]=1;uniq.push(id);} });
+    if(uniq.length<2){ showToast('Select at least two different profiles',true); return; }
+    var selectedRows=uniq.map(function(id){ return rows.find(function(r){return String(r.player_id||r._id||'')===id;}); }).filter(Boolean);
+    if(selectedRows.length<2){ showToast('Select at least two different profiles',true); return; }
+    mergeConfirmForm(computeMergedDoc(selectedRows), selectedRows);
+  });
+  openModalNode(root);
+}
+function mergeConfirmForm(merged, selectedRows){
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:'Confirm merged profile'}));
+  root.appendChild(el('p',{className:'sub2',textContent:'Review the merged details. Defaults come from the primary profile \u2014 edit anything before confirming. '+selectedRows.length+' profiles will be combined into one.'}));
+  var srcBox=el('div',{className:'field'});
+  selectedRows.forEach(function(r,i){
+    srcBox.appendChild(el('div',{textContent:(i===0?'Primary \u2192 ':'merge  \u2192 ')+profileLabel(r)},'font-size:12px;color:var(--muted);padding:3px 0'));
+  });
+  root.appendChild(srcBox);
+  var fName=fieldText('Name',merged.player_name,'Full name');
+  var fId=fieldText('ID (Player ID Cubs)',merged.player_id,'e.g. 129393');
+  var fPos=fieldSelect('Position',merged.position,POSITIONS);
+  var fClass=fieldSelect('Class',merged.class,[''].concat(CLASS_OPTS));
+  var fBats=fieldSeg('Bats',merged.bats,['R','L']);
+  var fThrows=fieldSeg('Throws',merged.throws,['R','L']);
+  var fDob=fieldDate('Date of birth',merged.dob);
+  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);
+  var acts=el('div',{className:'acts'});
+  var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
+  var go=el('button',{className:'primary',textContent:'Merge profiles'});
+  acts.appendChild(cancel);acts.appendChild(go);root.appendChild(acts);
+  go.addEventListener('click',function(){
+    var finalId=fId._input.value.trim();
+    if(!finalId){ showToast('An ID is required',true); return; }
+    var sourceIds=selectedRows.map(function(r){return String(r.player_id||r._id||'');});
+    if(sourceIds.indexOf(finalId)<0 && rows.some(function(x){return String(x.player_id||x._id||'')===finalId;})){
+      showToast('A different profile already uses ID '+finalId,true); return;
+    }
+    var finalDoc={
+      player_id:finalId,
+      player_name:fName._input.value.trim(),
+      position:fPos._input.value||'',
+      class:fClass._input.value||'',
+      bats:fBats._state.v||'',
+      throws:fThrows._state.v||'',
+      dob:fDob._input.value||'',
+      status:merged.status||{}
+    };
+    if(!DB){ showToast('Not connected to the database',true); return; }
+    go.disabled=true;
+    Promise.resolve(DB.upsert(finalId,finalDoc)).then(function(){
+      var seen={},toRemove=[];
+      sourceIds.forEach(function(id){ if(id&&id!==finalId&&!seen[id]){ seen[id]=1; toRemove.push(id); } });
+      return Promise.all(toRemove.map(function(id){ return Promise.resolve(DB.remove(id)); }));
+    }).then(function(){
+      closeModal();
+      showToast('Merged '+selectedRows.length+' profiles');
+    }).catch(function(e){ go.disabled=false; showToast('Merge failed: '+(e&&e.message||e),true); });
+  });
+  openModalNode(root);
+}
+
+// ================= HSV video (Firebase Storage + in-browser ffmpeg) =================
+var STG=null;                 // storage api, injected by the module script below
+window.__setStorage=function(api){ STG=api; };
+var ANGLES=['Side','Behind Home','Behind Pitcher'];
+// Default: P -> Behind Home; OF/IF/C/blank (anything else) -> Side
+function defaultAngle(position){ return position==='P' ? 'Behind Home' : 'Side'; }
+function baseName(fn){ return String(fn||'').replace(/\.[^.]+$/,''); }
+// stored file name: "<player_id> <filename> (<angle>)"
+function storedName(r,fileBase,angle){ return String(r.player_id||r._id||'')+' '+fileBase+' ('+angle+')'; }
+function todayISO(){ var d=new Date(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2); return d.getFullYear()+'-'+m+'-'+day; }
+
+// ---- ffmpeg.wasm lazy loader (single-thread core, no special COOP/COEP headers) ----
+var _ff=null,_ffP=null;
+function loadFFmpeg(){
+  if(_ff) return Promise.resolve(_ff);
+  if(_ffP) return _ffP;
+  if(typeof FFmpegWASM==='undefined'||typeof FFmpegUtil==='undefined') return Promise.reject(new Error('ffmpeg library failed to load'));
+  var base='https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  var ffbase='https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
+  var ff=new FFmpegWASM.FFmpeg();
+  // load core + worker as same-origin blob URLs so it works even from a file:// (origin 'null') page
+  var load=Promise.all([
+    FFmpegUtil.toBlobURL(base+'/ffmpeg-core.js','text/javascript'),
+    FFmpegUtil.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm'),
+    FFmpegUtil.toBlobURL(ffbase+'/814.ffmpeg.js','text/javascript')
+  ]).then(function(u){ return ff.load({coreURL:u[0],wasmURL:u[1],classWorkerURL:u[2]}); });
+  var timeout=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('ffmpeg took too long to load \u2014 check internet / CDN access')); },60000); });
+  _ffP=Promise.race([load,timeout]).then(function(){ _ff=ff; return ff; }).catch(function(e){ _ffP=null; throw e; });
+  return _ffP;
+}
+// 720p / preset fast / CRF 27 -> usually a couple MB
+function compressVideo(file,onProgress,onStatus){
+  return loadFFmpeg().then(function(ff){
+    var inN='in'+Date.now()+'.mp4',outN='out'+Date.now()+'.mp4',durMs=0;
+    function onLog(e){
+      var line=(e&&e.message)||'';
+      var dm=/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line);
+      if(dm) durMs=((+dm[1])*3600+(+dm[2])*60+parseFloat(dm[3]))*1000;
+      var tm=/time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line);
+      if(tm&&durMs>0&&onProgress){ var t=((+tm[1])*3600+(+tm[2])*60+parseFloat(tm[3]))*1000; onProgress(Math.min(0.99,t/durMs)); }
+      var fm=/frame=\s*(\d+)/.exec(line);
+      if(fm&&onStatus) onStatus('frame '+fm[1]);
+    }
+    function onProg(e){ if(onProgress&&e&&typeof e.progress==='number'&&e.progress>0) onProgress(Math.max(0,Math.min(0.99,e.progress))); }
+    ff.on('log',onLog); ff.on('progress',onProg);
+    function cleanup(){ try{ff.off('log',onLog);}catch(_){} try{ff.off('progress',onProg);}catch(_){} }
+    return FFmpegUtil.fetchFile(file).then(function(d){ return ff.writeFile(inN,d); })
+      .then(function(){ return ff.exec(['-i',inN,'-vf','scale=-2:720','-c:v','libx264','-preset','veryfast','-crf','27','-threads','0','-c:a','aac','-movflags','+faststart',outN]); })
+      .then(function(){ return ff.readFile(outN); })
+      .then(function(out){ cleanup(); try{ff.deleteFile(inN);ff.deleteFile(outN);}catch(_){} if(onProgress)onProgress(1); return new Blob([out.buffer],{type:'video/mp4'}); })
+      .catch(function(e){ cleanup(); throw e; });
+  });
+}
+
+// ---- table cell controls ----
+function uploadButton(r){
+  var b=el('button',{className:'ghost',textContent:'Upload HSV'},'padding:6px 12px;font-size:12px');
+  b.addEventListener('click',function(){ openUpload(r); });
+  return b;
+}
+function fmtDate(iso){ var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||'')); return m?(m[2]+'/'+m[3]+'/'+m[1]):String(iso||''); }
+function groupByDate(vids){
+  var map={}; vids.forEach(function(v){ var d=v.date||''; (map[d]=map[d]||[]).push(v); });
+  return Object.keys(map).sort(function(a,b){ return a<b?1:(a>b?-1:0); }).map(function(d){ return {date:d,items:map[d]}; });
+}
+var _openMenu=null;
+function _menuOutside(e){ if(_openMenu && !_openMenu.contains(e.target)) closePlayMenu(); }
+function closePlayMenu(){ if(!_openMenu) return; try{document.body.removeChild(_openMenu);}catch(_){} _openMenu=null; document.removeEventListener('mousedown',_menuOutside,true); window.removeEventListener('resize',closePlayMenu); window.removeEventListener('scroll',closePlayMenu,true); }
+function playControl(r){
+  var vids=Array.isArray(r.hsv)?r.hsv:[];
+  if(!vids.length) return el('span',{className:'mut',textContent:'\u2014'});
+  var btn=el('button',{className:'ghost',textContent:'Play HSV ('+vids.length+')'},'padding:6px 12px;font-size:12px');
+  btn.addEventListener('click',function(e){ e.stopPropagation(); if(_openMenu){ closePlayMenu(); return; } openPlayMenu(r,btn); });
+  return btn;
+}
+function openPlayMenu(r,anchor){
+  closePlayMenu();
+  var vids=Array.isArray(r.hsv)?r.hsv:[];
+  var menu=el('div'); menu.style.cssText='position:fixed;z-index:70;background:var(--panel2);border:1px solid var(--line);border-radius:10px;min-width:240px;max-width:340px;max-height:60vh;overflow:auto;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:6px';
+  groupByDate(vids).forEach(function(g){
+    var open={v:false};
+    var head=el('div',{},'display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;font-size:13px;font-weight:600;border-radius:8px');
+    var arrow=el('span',{textContent:'\u203a'},'display:inline-block;transition:transform .15s;color:var(--accent);font-size:15px;line-height:1');
+    var label=el('span',{textContent:fmtDate(g.date)+' \u00b7 '+g.items.length+' HSV Video'+(g.items.length!==1?'s':'')});
+    head.appendChild(arrow); head.appendChild(label);
+    var sub=el('div',{},'display:none;padding:2px 0 6px 26px');
+    g.items.forEach(function(v){
+      var it=el('div',{textContent:v.name||((v.title||'clip')+' ('+(v.angle||'')+')')},'padding:7px 10px;cursor:pointer;font-size:13px;border-radius:7px');
+      it.addEventListener('mouseenter',function(){ it.style.background='rgba(56,189,248,.1)'; });
+      it.addEventListener('mouseleave',function(){ it.style.background=''; });
+      it.addEventListener('click',function(ev){ ev.stopPropagation(); closePlayMenu(); openPlay(r,v); });
+      sub.appendChild(it);
+    });
+    head.addEventListener('mouseenter',function(){ if(!open.v) head.style.background='rgba(56,189,248,.08)'; });
+    head.addEventListener('mouseleave',function(){ head.style.background=''; });
+    head.addEventListener('click',function(ev){ ev.stopPropagation(); open.v=!open.v; sub.style.display=open.v?'block':'none'; arrow.style.transform=open.v?'rotate(90deg)':'none'; });
+    menu.appendChild(head); menu.appendChild(sub);
+  });
+  document.body.appendChild(menu);
+  var rect=anchor.getBoundingClientRect(), mw=menu.offsetWidth, mh=menu.offsetHeight;
+  var left=rect.left, top=rect.bottom+6;
+  if(left+mw>window.innerWidth-8) left=Math.max(8,window.innerWidth-mw-8);
+  if(top+mh>window.innerHeight-8) top=Math.max(8,rect.top-mh-6);
+  menu.style.left=left+'px'; menu.style.top=top+'px';
+  _openMenu=menu;
+  setTimeout(function(){ document.addEventListener('mousedown',_menuOutside,true); window.addEventListener('resize',closePlayMenu); window.addEventListener('scroll',closePlayMenu,true); },0);
+}
+
+// ---- upload modal (mirrors the screenshot layout) ----
+function openUpload(r){
+  var queue=[]; // {file, base, angle, _editing}
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:'Upload HSV: '+(r.player_name||'(no name)')}));
+  root.appendChild(el('p',{className:'sub2',textContent:'MP4 videos. Each clip is compressed to 720p (preset fast, CRF 27) in your browser before upload \u2014 usually only a couple MB.'}));
+  var drop=el('div',{textContent:'Drag Files or Click Here'},'border:2px dashed var(--line);border-radius:12px;padding:30px;text-align:center;color:var(--muted);cursor:pointer;margin-bottom:12px');
+  var fileInput=el('input'); fileInput.type='file'; fileInput.accept='video/mp4,video/*'; fileInput.multiple=true; fileInput.style.display='none';
+  drop.addEventListener('click',function(){ fileInput.click(); });
+  drop.addEventListener('dragover',function(e){ e.preventDefault(); drop.style.borderColor='var(--accent)'; });
+  drop.addEventListener('dragleave',function(){ drop.style.borderColor='var(--line)'; });
+  drop.addEventListener('drop',function(e){ e.preventDefault(); drop.style.borderColor='var(--line)'; addFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change',function(){ addFiles(fileInput.files); fileInput.value=''; });
+  root.appendChild(drop); root.appendChild(fileInput);
+  var dateRow=el('div',{},'display:flex;align-items:center;gap:10px;margin-bottom:12px');
+  dateRow.appendChild(el('span',{textContent:'Date'},'font-size:12px;color:var(--muted);font-weight:600'));
+  var dateIn=el('input'); dateIn.type='date'; dateIn.value=todayISO(); dateIn.style.cssText='background:#0b1220;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px 10px;font-size:14px;color-scheme:dark';
+  dateRow.appendChild(dateIn); root.appendChild(dateRow);
+  var tableWrap=el('div',{},'border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:6px');
+  var qtable=el('table',{},'width:100%;border-collapse:collapse');
+  var qhr=el('tr');
+  ['Title','Angle',''].forEach(function(h,i){ qhr.appendChild(el('th',{textContent:h},'text-align:'+(i===2?'right':'left')+';font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--line)')); });
+  var qhead=el('thead'); qhead.appendChild(qhr); qtable.appendChild(qhead);
+  var qbody=el('tbody'); qtable.appendChild(qbody); tableWrap.appendChild(qtable); root.appendChild(tableWrap);
+  var emptyNote=el('div',{textContent:'No files added yet.'},'color:var(--muted);font-size:13px;padding:10px 2px');
+  root.appendChild(emptyNote);
+  function addFiles(files){ Array.prototype.forEach.call(files||[],function(f){ queue.push({file:f,base:baseName(f.name),angle:defaultAngle(r.position)}); }); renderQueue(); }
+  function renderQueue(){
+    qbody.innerHTML=''; emptyNote.style.display=queue.length?'none':''; tableWrap.style.display=queue.length?'':'none';
+    queue.forEach(function(item,idx){
+      var tr=el('tr');
+      tr.appendChild(el('td',{textContent:item.base},'padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px'));
+      var angleTd=el('td',{},'padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px');
+      if(item._editing){
+        var ssel=el('select'); ssel.style.cssText='background:#0b1220;border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:4px 6px;font-size:13px';
+        ANGLES.forEach(function(a){ var o=el('option',{value:a,textContent:a}); if(a===item.angle)o.selected=true; ssel.appendChild(o); });
+        ssel.addEventListener('change',function(){ item.angle=ssel.value; item._editing=false; renderQueue(); });
+        ssel.addEventListener('blur',function(){ item._editing=false; renderQueue(); });
+        angleTd.appendChild(ssel); setTimeout(function(){ try{ssel.focus();}catch(_){} },0);
+      } else { angleTd.textContent=item.angle; }
+      tr.appendChild(angleTd);
+      var tdAct=el('td',{},'padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap');
+      var pencil=el('button',{className:'ghost',textContent:'\u270e',title:'Edit angle'},'padding:4px 9px;font-size:13px');
+      pencil.addEventListener('click',function(){ queue.forEach(function(x){x._editing=false;}); item._editing=true; renderQueue(); });
+      var trash=el('button',{className:'danger',textContent:'\u2715',title:'Remove'},'padding:4px 9px;font-size:13px;margin-left:6px');
+      trash.addEventListener('click',function(){ queue.splice(idx,1); renderQueue(); });
+      tdAct.appendChild(pencil); tdAct.appendChild(trash); tr.appendChild(tdAct); qbody.appendChild(tr);
+    });
+  }
+  renderQueue();
+  var progWrap=el('div',{},'margin-top:12px;display:none');
+  var progStatus=el('div',{},'font-size:12px;color:var(--muted);margin-bottom:8px');
+  function mkBar(name){
+    var row=el('div',{},'margin-bottom:9px');
+    var top=el('div',{},'display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px');
+    top.appendChild(el('span',{textContent:name})); var pct=el('span',{textContent:'0%'}); top.appendChild(pct);
+    var track=el('div',{},'height:9px;background:#0b1220;border:1px solid var(--line);border-radius:999px;overflow:hidden');
+    var fill=el('div',{},'height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .12s');
+    track.appendChild(fill); row.appendChild(top); row.appendChild(track);
+    return {node:row,set:function(p){ var w=Math.max(0,Math.min(100,Math.round((p||0)*100))); fill.style.width=w+'%'; pct.textContent=w+'%'; }};
+  }
+  var barC=mkBar('Compressing'), barU=mkBar('Uploading');
+  progWrap.appendChild(progStatus); progWrap.appendChild(barC.node); progWrap.appendChild(barU.node);
+  root.appendChild(progWrap);
+  var acts=el('div',{className:'acts'});
+  var cancel=el('button',{className:'ghost',textContent:'Cancel'}); cancel.addEventListener('click',closeModal);
+  var up=el('button',{className:'primary',textContent:'Upload HSV'});
+  acts.appendChild(cancel); acts.appendChild(up); root.appendChild(acts);
+  up.addEventListener('click',function(){
+    if(!queue.length){ showToast('Add at least one video',true); return; }
+    if(!STG){ showToast('Storage not connected',true); return; }
+    if(!DB){ showToast('Not connected to the database',true); return; }
+    up.disabled=true; cancel.disabled=true; progWrap.style.display='';
+    var date=dateIn.value||todayISO(), pid=String(r.player_id||r._id||'');
+    var existing=Array.isArray(r.hsv)?r.hsv.slice():[], added=[];
+    function step(i){
+      if(i>=queue.length){
+        return Promise.resolve(DB.upsert(pid,{hsv:existing.concat(added)})).then(function(){ closeModal(); showToast('Uploaded '+added.length+' HSV clip'+(added.length!==1?'s':'')); });
+      }
+      var item=queue[i], name=storedName(r,item.base,item.angle), path='hsv/'+pid+'/'+name+'.mp4';
+      progStatus.textContent='('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 compressing\u2026';
+      barC.set(0); barU.set(0);
+      return compressVideo(item.file,function(p){ barC.set(p); },function(s){ progStatus.textContent='('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 compressing ('+s+')'; })
+        .then(function(blob){ barC.set(1); progStatus.textContent='('+(i+1)+'/'+queue.length+') '+name+' \u2014 '+(blob.size/1048576).toFixed(1)+' MB, uploading\u2026'; return STG.upload(path,blob,function(p){ barU.set(p); }); })
+        .then(function(url){ barU.set(1); added.push({id:'v'+Date.now()+'_'+i,name:name,title:item.base,angle:item.angle,date:date,url:url,path:path}); return step(i+1); });
+    }
+    step(0).catch(function(e){ up.disabled=false; cancel.disabled=false; showToast('Upload failed: '+(e&&e.message||e),true); });
+  });
+  openModalNode(root);
+}
+
+// ---- play / delete a stored clip ----
+function openPlay(r,v){
+  var root=el('div');
+  root.appendChild(el('h3',{textContent:'Play HSV: '+(r.player_name||'')}));
+  root.appendChild(el('p',{className:'sub2',textContent:(v.name||v.title||'')+(v.date?('  \u2014  '+v.date):'')}));
+  var vid=el('video'); vid.src=v.url; vid.controls=true; vid.autoplay=true; vid.playsInline=true; vid.style.cssText='width:100%;border-radius:10px;background:#000;max-height:60vh';
+  root.appendChild(vid);
+  var acts=el('div',{className:'acts'});
+  var del=el('button',{className:'danger',textContent:'Delete clip'}); del.addEventListener('click',function(){ deleteHSV(r,v); });
+  var close=el('button',{className:'ghost',textContent:'Close'}); close.addEventListener('click',closeModal);
+  acts.appendChild(del); acts.appendChild(close); root.appendChild(acts);
+  openModalNode(root);
+}
+function deleteHSV(r,v){
+  if(!window.confirm('Delete '+(v.name||'this clip')+'?')) return;
+  if(!DB){ showToast('Not connected to the database',true); return; }
+  var pid=String(r.player_id||r._id||'');
+  var rest=(Array.isArray(r.hsv)?r.hsv:[]).filter(function(x){ return x.id!==v.id; });
+  var p=(STG&&v.path)?Promise.resolve(STG.remove(v.path)).catch(function(){}):Promise.resolve();
+  p.then(function(){ return Promise.resolve(DB.upsert(pid,{hsv:rest})); }).then(function(){ closeModal(); showToast('Clip deleted'); }).catch(function(e){ showToast('Delete failed: '+(e&&e.message||e),true); });
+}
+
+// ---- wire up static UI ----
+$('search').addEventListener('input',function(e){ filterText=e.target.value.trim(); render(); });
+$('addBtn').addEventListener('click',openNew);
+$('mergeBtn').addEventListener('click',openMerge);
+$('overlay').addEventListener('click',function(e){ if(e.target===$('overlay')) closeModal(); });
+// bridge the module (Firestore) layer into this script's state
+window.__applyData=function(list,api){ rows=list; if(api) DB=api; render(); };
+window.__setDB=function(api){ DB=api; };
+// auto-capitalize first letter of text inputs (matches the data-entry tool)
+document.addEventListener('input',function(e){
+  var t=e.target; if(!t||t.tagName!=='INPUT'||(t.type||'text')!=='text') return;
+  var v=t.value; if(v && v.charAt(0)!==v.charAt(0).toUpperCase()){ var p=t.selectionStart; t.value=v.charAt(0).toUpperCase()+v.slice(1); try{t.setSelectionRange(p,p);}catch(_){} }
+},true);
+</script>
+
+<script type="module">
+// ==== Firestore connection (same project / collection as the data-entry tool) ====
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+// >>> PASTE THE SAME CONFIG YOU USED IN THE DATA-ENTRY TOOL <<<
+// Firebase console -> Project settings -> Your apps -> SDK setup and configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDzxseQexlbv0onZH2l5PHNDa5ZKFv5Kz8",
+  authDomain: "cubsentry.web.app",
+  projectId: "cubsentry",
+  storageBucket: "cubsentry.firebasestorage.app",
+  messagingSenderId: "929110932897",
+  appId: "1:929110932897:web:1d91596a2787084a085fe0"
+};
+const COLLECTION = "Players"; // must match the data-entry tool
+
+function setState(txt,cls){ const s=document.getElementById('connState'); if(s){ s.textContent=txt; s.style.color = cls==='ok'?'#22c55e':(cls==='bad'?'#f87171':''); } }
+
+try {
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+  const col = collection(db, COLLECTION);
+  const storageApi = {
+    upload(path, blob, onProgress){
+      return new Promise(function(resolve,reject){
+        const task = uploadBytesResumable(sref(storage, path), blob, { contentType:'video/mp4' });
+        task.on('state_changed', function(s){ if(onProgress) onProgress(s.bytesTransferred/(s.totalBytes||1)); }, reject, function(){ getDownloadURL(task.snapshot.ref).then(resolve).catch(reject); });
+      });
+    },
+    remove(path){ return deleteObject(sref(storage, path)); }
+  };
+  window.CubSentryStorage = storageApi;
+  if(window.__setStorage) window.__setStorage(storageApi);
+  window.__setRows = null; // set below via closure
+  const api = {
+    upsert(id, data){ return setDoc(doc(db, COLLECTION, String(id)), data, { merge: true }); },
+    remove(id){ return deleteDoc(doc(db, COLLECTION, String(id))); }
+  };
+  // hand the API + live data to the non-module script via globals it reads
+  window.CubSentryDB = api;
+  if(window.__setDB) window.__setDB(api);
+  onSnapshot(col, snap => {
+    const list = snap.docs.map(d => Object.assign({ _id: d.id }, d.data()));
+    setState('Connected \u2022 live', 'ok');
+    if(window.__applyData) window.__applyData(list, api);
+  }, err => {
+    console.warn('Firestore listen error:', err);
+    setState('Connection error \u2014 check your config', 'bad');
+    const sb=document.getElementById('statusBox'); if(sb){ sb.className='status err'; sb.style.display=''; sb.textContent='Could not read the database. Paste your Firebase keys into this file (same as the data-entry tool) and reload.'; }
+  });
+} catch(e){
+  console.warn('Firebase init failed:', e);
+  setState('Not connected', 'bad');
+  const sb=document.getElementById('statusBox'); if(sb){ sb.className='status err'; sb.style.display=''; sb.textContent='Firebase is not configured. Paste your Firebase keys into this file (the same config used by the data-entry tool) and reload.'; }
+}
+</script>
+</body>
+</html>
