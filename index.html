@@ -552,7 +552,7 @@ function loadFFmpeg(){
     FFmpegUtil.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm'),
     FFmpegUtil.toBlobURL(ffbase+'/814.ffmpeg.js','text/javascript')
   ]).then(function(u){ return ff.load({coreURL:u[0],wasmURL:u[1],classWorkerURL:u[2]}); });
-  var timeout=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('ffmpeg took too long to load \u2014 check internet / CDN access')); },60000); });
+  var timeout=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('ffmpeg took too long to load \u2014 check internet / CDN access')); },30000); });
   _ffP=Promise.race([load,timeout]).then(function(){ _ff=ff; return ff; }).catch(function(e){ _ffP=null; throw e; });
   return _ffP;
 }
@@ -577,6 +577,13 @@ function compressVideo(file,onProgress,onStatus){
       .then(function(){ return ff.readFile(outN); })
       .then(function(out){ cleanup(); try{ff.deleteFile(inN);ff.deleteFile(outN);}catch(_){} if(onProgress)onProgress(1); return new Blob([out.buffer],{type:'video/mp4'}); })
       .catch(function(e){ cleanup(); throw e; });
+  }).catch(function(e){
+    // ffmpeg.wasm could not load / failed in this browser -> fall back to uploading the ORIGINAL
+    // (uncompressed) file so the HSV upload still works no matter what. Compression is best-effort.
+    try{ console.warn('HSV compression skipped:', e && (e.message||e)); }catch(_){}
+    if(onStatus) onStatus('compression unavailable \u2014 uploading original');
+    if(onProgress) onProgress(1);
+    return file;
   });
 }
 
