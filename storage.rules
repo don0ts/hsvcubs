@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Final, transcoded clips. Readable by anyone who has the link; the Cloud
+    // Function writes these via the Admin SDK (which bypasses rules anyway).
+    // 'write: if true' is kept so the data-entry page can DELETE clips.
+    match /hsv/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Raw uploads from the browser. Capped at 2 GB and must be a video.
+    match /hsv_raw/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 2 * 1024 * 1024 * 1024
+                   && request.resource.contentType.matches('video/.*');
+    }
+  }
+}
+
+// SECURITY NOTE: these rules are OPEN (no authentication). That is fine for an
+// internal tool served from a private URL, but anyone who learns the bucket
+// name could read/upload. If you want to lock it down, add Firebase Auth and
+// change the conditions to e.g. `if request.auth != null`.

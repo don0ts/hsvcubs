@@ -106,8 +106,7 @@ thead th .arrow{margin-left:5px;font-size:10px;opacity:.85}
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<!-- HSV compression runs server-side (Cloud Function transcodeHSV); no browser ffmpeg needed -->
 <script>
 // ---- helpers ----
 function $(id){return document.getElementById(id);}
@@ -526,7 +525,7 @@ function mergeConfirmForm(merged, selectedRows){
   openModalNode(root);
 }
 
-// ================= HSV video (Firebase Storage + in-browser ffmpeg) =================
+// ================= HSV video (Firebase Storage + server-side transcode) =================
 var STG=null;                 // storage api, injected by the module script below
 window.__setStorage=function(api){ STG=api; };
 var ANGLES=['Side','Behind Home','Behind Pitcher'];
@@ -537,55 +536,10 @@ function baseName(fn){ return String(fn||'').replace(/\.[^.]+$/,''); }
 function storedName(r,fileBase,angle){ return String(r.player_id||r._id||'')+' '+fileBase+' ('+angle+')'; }
 function todayISO(){ var d=new Date(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2); return d.getFullYear()+'-'+m+'-'+day; }
 
-// ---- ffmpeg.wasm lazy loader (single-thread core, no special COOP/COEP headers) ----
-var _ff=null,_ffP=null;
-function loadFFmpeg(){
-  if(_ff) return Promise.resolve(_ff);
-  if(_ffP) return _ffP;
-  if(typeof FFmpegWASM==='undefined'||typeof FFmpegUtil==='undefined') return Promise.reject(new Error('ffmpeg library failed to load'));
-  var base='https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  var ffbase='https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
-  var ff=new FFmpegWASM.FFmpeg();
-  // load core + worker as same-origin blob URLs so it works even from a file:// (origin 'null') page
-  var load=Promise.all([
-    FFmpegUtil.toBlobURL(base+'/ffmpeg-core.js','text/javascript'),
-    FFmpegUtil.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm'),
-    FFmpegUtil.toBlobURL(ffbase+'/814.ffmpeg.js','text/javascript')
-  ]).then(function(u){ return ff.load({coreURL:u[0],wasmURL:u[1],classWorkerURL:u[2]}); });
-  var timeout=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('ffmpeg took too long to load \u2014 check internet / CDN access')); },30000); });
-  _ffP=Promise.race([load,timeout]).then(function(){ _ff=ff; return ff; }).catch(function(e){ _ffP=null; throw e; });
-  return _ffP;
-}
-// 720p / preset fast / CRF 27 -> usually a couple MB
-function compressVideo(file,onProgress,onStatus){
-  return loadFFmpeg().then(function(ff){
-    var inN='in'+Date.now()+'.mp4',outN='out'+Date.now()+'.mp4',durMs=0;
-    function onLog(e){
-      var line=(e&&e.message)||'';
-      var dm=/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line);
-      if(dm) durMs=((+dm[1])*3600+(+dm[2])*60+parseFloat(dm[3]))*1000;
-      var tm=/time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line);
-      if(tm&&durMs>0&&onProgress){ var t=((+tm[1])*3600+(+tm[2])*60+parseFloat(tm[3]))*1000; onProgress(Math.min(0.99,t/durMs)); }
-      var fm=/frame=\s*(\d+)/.exec(line);
-      if(fm&&onStatus) onStatus('frame '+fm[1]);
-    }
-    function onProg(e){ if(onProgress&&e&&typeof e.progress==='number'&&e.progress>0) onProgress(Math.max(0,Math.min(0.99,e.progress))); }
-    ff.on('log',onLog); ff.on('progress',onProg);
-    function cleanup(){ try{ff.off('log',onLog);}catch(_){} try{ff.off('progress',onProg);}catch(_){} }
-    return FFmpegUtil.fetchFile(file).then(function(d){ return ff.writeFile(inN,d); })
-      .then(function(){ return ff.exec(['-i',inN,'-vf','scale=-2:720','-c:v','libx264','-preset','veryfast','-crf','27','-threads','0','-c:a','aac','-movflags','+faststart',outN]); })
-      .then(function(){ return ff.readFile(outN); })
-      .then(function(out){ cleanup(); try{ff.deleteFile(inN);ff.deleteFile(outN);}catch(_){} if(onProgress)onProgress(1); return new Blob([out.buffer],{type:'video/mp4'}); })
-      .catch(function(e){ cleanup(); throw e; });
-  }).catch(function(e){
-    // ffmpeg.wasm could not load / failed in this browser -> fall back to uploading the ORIGINAL
-    // (uncompressed) file so the HSV upload still works no matter what. Compression is best-effort.
-    try{ console.warn('HSV compression skipped:', e && (e.message||e)); }catch(_){}
-    if(onStatus) onStatus('compression unavailable \u2014 uploading original');
-    if(onProgress) onProgress(1);
-    return file;
-  });
-}
+// ---- HSV compression is now SERVER-SIDE (Cloud Function transcodeHSV) ----
+// The browser only uploads the raw clip to hsv_raw/<player_id>/<clipId>.mp4 with
+// customMetadata; the function transcodes to 720p, writes hsv/<player_id>/..., and
+// appends the clip to the player's Firestore doc. No in-browser ffmpeg.
 
 // ---- table cell controls ----
 function uploadButton(r){
@@ -647,7 +601,7 @@ function openUpload(r){
   var locked=false; // true while an upload is in flight — freezes the whole form
   var root=el('div');
   root.appendChild(el('h3',{textContent:'Upload HSV: '+(r.player_name||'(no name)')}));
-  root.appendChild(el('p',{className:'sub2',textContent:'MP4 videos. Each clip is compressed to 720p (preset fast, CRF 27) in your browser before upload \u2014 usually only a couple MB.'}));
+  root.appendChild(el('p',{className:'sub2',textContent:'MP4 videos. Each clip uploads at full quality, then the server automatically transcodes it to 720p. It appears under \u201cPlay HSV\u201d once the server finishes \u2014 you can close this window.'}));
   var drop=el('div',{textContent:'Drag Files or Click Here'},'border:2px dashed var(--line);border-radius:12px;padding:30px;text-align:center;color:var(--muted);cursor:pointer;margin-bottom:12px');
   var fileInput=el('input'); fileInput.type='file'; fileInput.accept='video/mp4,video/*'; fileInput.multiple=true; fileInput.style.display='none';
   drop.addEventListener('click',function(){ fileInput.click(); });
@@ -704,8 +658,15 @@ function openUpload(r){
     track.appendChild(fill); row.appendChild(top); row.appendChild(track);
     return {node:row,set:function(p){ var w=Math.max(0,Math.min(100,Math.round((p||0)*100))); fill.style.width=w+'%'; pct.textContent=w+'%'; }};
   }
-  var barC=mkBar('Compressing'), barU=mkBar('Uploading');
-  progWrap.appendChild(progStatus); progWrap.appendChild(barC.node); progWrap.appendChild(barU.node);
+  var barU=mkBar('Uploading');
+  var logPanel=el('div',{},'margin-top:10px;max-height:160px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.55;color:#cbd5e1;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;word-break:break-word');
+  function logLine(msg){
+    var t=new Date(),p=function(n){return('0'+n).slice(-2);};
+    var line=el('div',{textContent:'['+p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds())+'] '+msg});
+    logPanel.appendChild(line); logPanel.scrollTop=logPanel.scrollHeight;
+    try{ console.log('[HSV upload] '+msg); }catch(_){}
+  }
+  progWrap.appendChild(progStatus); progWrap.appendChild(barU.node); progWrap.appendChild(logPanel);
   root.appendChild(progWrap);
   var errBox=el('div',{},'display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid #f87171;color:#fecaca;font-size:12.5px;line-height:1.5');
   root.appendChild(errBox);
@@ -729,19 +690,24 @@ function openUpload(r){
     if(!DB){ showToast('Not connected to the database',true); return; }
     clearErr(); setLocked(true); progWrap.style.display='';
     var date=dateIn.value||todayISO(), pid=String(r.player_id||r._id||'');
-    var existing=Array.isArray(r.hsv)?r.hsv.slice():[], added=[];
+    logLine('starting upload of '+queue.length+' clip'+(queue.length!==1?'s':'')+' for player '+pid);
     function step(i){
       if(i>=queue.length){
-        return Promise.resolve(DB.upsert(pid,{hsv:existing.concat(added)})).then(function(){ closeModal(); showToast('Uploaded '+added.length+' HSV clip'+(added.length!==1?'s':'')); });
+        logLine('\u2713 all '+queue.length+' raw clip'+(queue.length!==1?'s':'')+' uploaded \u2014 the server is now transcoding to 720p');
+        closeModal();
+        showToast('Uploaded '+queue.length+' clip'+(queue.length!==1?'s':'')+' \u2014 transcoding on the server\u2026');
+        return Promise.resolve();
       }
-      var item=queue[i], name=storedName(r,item.base,item.angle), path='hsv/'+pid+'/'+name+'.mp4';
-      progStatus.textContent='('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 compressing\u2026';
-      barC.set(0); barU.set(0);
-      return compressVideo(item.file,function(p){ barC.set(p); },function(s){ progStatus.textContent='('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 compressing ('+s+')'; })
-        .then(function(blob){ barC.set(1); progStatus.textContent='('+(i+1)+'/'+queue.length+') '+name+' \u2014 '+(blob.size/1048576).toFixed(1)+' MB, uploading\u2026'; return STG.upload(path,blob,function(p){ barU.set(p); }); })
-        .then(function(url){ barU.set(1); added.push({id:'v'+Date.now()+'_'+i,name:name,title:item.base,angle:item.angle,date:date,url:url,path:path}); return step(i+1); });
+      var item=queue[i], clipId='v'+Date.now()+'_'+i, display=storedName(r,item.base,item.angle);
+      var rawPath='hsv_raw/'+pid+'/'+clipId+'.mp4';
+      var meta={ player_id:pid, clip_id:clipId, title:item.base, angle:item.angle, date:date, display_name:display };
+      progStatus.textContent='('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 uploading\u2026';
+      barU.set(0);
+      logLine('('+(i+1)+'/'+queue.length+') '+item.base+' ('+item.angle+') '+(item.file.size/1048576).toFixed(1)+' MB \u2192 '+rawPath);
+      return STG.upload(rawPath,item.file,function(p){ barU.set(p); },logLine,meta)
+        .then(function(){ barU.set(1); logLine('('+(i+1)+'/'+queue.length+') '+item.base+' \u2014 raw upload done, queued for server transcode'); return step(i+1); });
     }
-    step(0).catch(function(e){ setLocked(false); var m=(e&&e.message||e); showErr('Upload failed: '+m); showToast('Upload failed',true); });
+    step(0).catch(function(e){ setLocked(false); var m=(e&&e.message||e); logLine('\u2717 '+m); showErr('Upload failed: '+m); showToast('Upload failed',true); });
   });
   openModalNode(root);
 }
@@ -809,21 +775,40 @@ try {
   const storage = getStorage(app);
   const col = collection(db, COLLECTION);
   const storageApi = {
-    upload(path, blob, onProgress){
+    upload(path, blob, onProgress, onLog, meta){
       return new Promise(function(resolve,reject){
-        const task = uploadBytesResumable(sref(storage, path), blob, { contentType:'video/mp4' });
-        let moved=false;
-        // watchdog: if not a single byte moves in 30s, the request is being silently blocked
-        // (almost always Storage CORS / Security-Rules / bucket not enabled) — fail loudly instead of hanging.
-        const watchdog=setTimeout(function(){
-          if(!moved){ try{ task.cancel(); }catch(_){}
+        function log(m){ try{ if(onLog) onLog(m); }catch(_){} }
+        const md = { contentType: (blob && blob.type) || 'video/mp4' };
+        if(meta) md.customMetadata = meta;
+        const task = uploadBytesResumable(sref(storage, path), blob, md);
+        const started = Date.now();
+        const total = (blob && blob.size) || 0;
+        let moved=false, lastBytes=0, lastTs=Date.now(), stallSecs=0;
+        log('session created \u2022 '+(total/1048576).toFixed(2)+' MB \u2192 '+path);
+        // watchdog: ticks every 5s logging throughput / stalls, and aborts loudly if 0 bytes
+        // move within 30s (almost always Storage CORS / Security-Rules / bucket not enabled).
+        const ticker=setInterval(function(){
+          const snap=task.snapshot; if(!snap){ return; }
+          const bt=snap.bytesTransferred, tot=snap.totalBytes||total||1;
+          const dt=(Date.now()-lastTs)/1000, delta=bt-lastBytes, rate=dt>0?delta/dt:0, pct=100*bt/tot;
+          if(delta<=0){
+            stallSecs+=5;
+            log('\u26a0 no progress for '+stallSecs+'s \u2014 '+pct.toFixed(1)+'% ('+(bt/1048576).toFixed(2)+' MB), state='+snap.state);
+          } else {
+            stallSecs=0;
+            log(pct.toFixed(1)+'% \u2022 '+(bt/1048576).toFixed(2)+'/'+(tot/1048576).toFixed(2)+' MB \u2022 '+(rate/1048576).toFixed(2)+' MB/s \u2022 '+snap.state);
+          }
+          lastBytes=bt; lastTs=Date.now();
+          if(!moved && (Date.now()-started)>=30000){
+            clearInterval(ticker); try{ task.cancel(); }catch(_){}
+            log('\u2717 0 bytes after 30s \u2014 aborting');
             reject(new Error('Upload did not start \u2014 0 bytes after 30s. This is almost always a Storage CORS rule, Security-Rules denial, or Storage not being enabled on the bucket. Open the browser console (F12) for the exact network error.'));
           }
-        }, 30000);
+        }, 5000);
         task.on('state_changed',
           function(s){ if(s.bytesTransferred>0) moved=true; if(onProgress) onProgress(s.bytesTransferred/(s.totalBytes||1)); },
-          function(err){ clearTimeout(watchdog); try{ console.error('HSV upload error:', err && (err.code||''), err); }catch(_){} reject(err); },
-          function(){ clearTimeout(watchdog); getDownloadURL(task.snapshot.ref).then(resolve).catch(reject); });
+          function(err){ clearInterval(ticker); const c=(err&&(err.code||err.message))||err; log('\u2717 error: '+c); try{ console.error('HSV upload error:', err); }catch(_){} reject(err); },
+          function(){ clearInterval(ticker); log('\u2713 bytes uploaded, requesting download URL\u2026'); getDownloadURL(task.snapshot.ref).then(function(u){ log('\u2713 raw clip stored'); resolve(u); }).catch(reject); });
       });
     },
     remove(path){ return deleteObject(sref(storage, path)); }
