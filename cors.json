@@ -1,0 +1,25 @@
+[
+  {
+    "origin": [
+      "https://cubsentry.web.app",
+      "https://cubsentry.firebaseapp.com",
+      "http://localhost:5000",
+      "http://127.0.0.1:5000"
+    ],
+    "method": ["GET", "PUT", "POST", "HEAD", "DELETE"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Range",
+      "Content-Disposition",
+      "Authorization",
+      "X-Goog-Upload-Protocol",
+      "X-Goog-Upload-Command",
+      "X-Goog-Upload-Offset",
+      "X-Goog-Upload-Header-Content-Length",
+      "X-Goog-Upload-Status",
+      "X-Goog-Upload-URL",
+      "x-goog-resumable"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

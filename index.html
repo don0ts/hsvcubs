@@ -644,6 +644,7 @@ function openPlayMenu(r,anchor){
 // ---- upload modal (mirrors the screenshot layout) ----
 function openUpload(r){
   var queue=[]; // {file, base, angle, _editing}
+  var locked=false; // true while an upload is in flight — freezes the whole form
   var root=el('div');
   root.appendChild(el('h3',{textContent:'Upload HSV: '+(r.player_name||'(no name)')}));
   root.appendChild(el('p',{className:'sub2',textContent:'MP4 videos. Each clip is compressed to 720p (preset fast, CRF 27) in your browser before upload \u2014 usually only a couple MB.'}));
@@ -667,14 +668,14 @@ function openUpload(r){
   var qbody=el('tbody'); qtable.appendChild(qbody); tableWrap.appendChild(qtable); root.appendChild(tableWrap);
   var emptyNote=el('div',{textContent:'No files added yet.'},'color:var(--muted);font-size:13px;padding:10px 2px');
   root.appendChild(emptyNote);
-  function addFiles(files){ Array.prototype.forEach.call(files||[],function(f){ queue.push({file:f,base:baseName(f.name),angle:defaultAngle(r.position)}); }); renderQueue(); }
+  function addFiles(files){ if(locked) return; Array.prototype.forEach.call(files||[],function(f){ queue.push({file:f,base:baseName(f.name),angle:defaultAngle(r.position)}); }); renderQueue(); }
   function renderQueue(){
     qbody.innerHTML=''; emptyNote.style.display=queue.length?'none':''; tableWrap.style.display=queue.length?'':'none';
     queue.forEach(function(item,idx){
       var tr=el('tr');
       tr.appendChild(el('td',{textContent:item.base},'padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px'));
       var angleTd=el('td',{},'padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px');
-      if(item._editing){
+      if(item._editing && !locked){
         var ssel=el('select'); ssel.style.cssText='background:#0b1220;border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:4px 6px;font-size:13px';
         ANGLES.forEach(function(a){ var o=el('option',{value:a,textContent:a}); if(a===item.angle)o.selected=true; ssel.appendChild(o); });
         ssel.addEventListener('change',function(){ item.angle=ssel.value; item._editing=false; renderQueue(); });
@@ -684,9 +685,10 @@ function openUpload(r){
       tr.appendChild(angleTd);
       var tdAct=el('td',{},'padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap');
       var pencil=el('button',{className:'ghost',textContent:'\u270e',title:'Edit angle'},'padding:4px 9px;font-size:13px');
-      pencil.addEventListener('click',function(){ queue.forEach(function(x){x._editing=false;}); item._editing=true; renderQueue(); });
+      pencil.addEventListener('click',function(){ if(locked) return; queue.forEach(function(x){x._editing=false;}); item._editing=true; renderQueue(); });
       var trash=el('button',{className:'danger',textContent:'\u2715',title:'Remove'},'padding:4px 9px;font-size:13px;margin-left:6px');
-      trash.addEventListener('click',function(){ queue.splice(idx,1); renderQueue(); });
+      trash.addEventListener('click',function(){ if(locked) return; queue.splice(idx,1); renderQueue(); });
+      if(locked){ pencil.disabled=true; trash.disabled=true; pencil.style.opacity='.4'; trash.style.opacity='.4'; pencil.style.cursor='not-allowed'; trash.style.cursor='not-allowed'; }
       tdAct.appendChild(pencil); tdAct.appendChild(trash); tr.appendChild(tdAct); qbody.appendChild(tr);
     });
   }
@@ -705,6 +707,18 @@ function openUpload(r){
   var barC=mkBar('Compressing'), barU=mkBar('Uploading');
   progWrap.appendChild(progStatus); progWrap.appendChild(barC.node); progWrap.appendChild(barU.node);
   root.appendChild(progWrap);
+  var errBox=el('div',{},'display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid #f87171;color:#fecaca;font-size:12.5px;line-height:1.5');
+  root.appendChild(errBox);
+  function showErr(msg){ errBox.textContent=msg; errBox.style.display=''; }
+  function clearErr(){ errBox.style.display='none'; errBox.textContent=''; }
+  // Freeze the whole form while an upload is running: Upload button, date, drop zone and the per-row edit/remove controls.
+  function setLocked(on){
+    locked=on;
+    up.disabled=on;
+    dateIn.disabled=on; dateIn.style.opacity=on?'.5':''; dateIn.style.pointerEvents=on?'none':'';
+    drop.style.opacity=on?'.5':''; drop.style.pointerEvents=on?'none':''; drop.style.cursor=on?'not-allowed':'pointer';
+    renderQueue();
+  }
   var acts=el('div',{className:'acts'});
   var cancel=el('button',{className:'ghost',textContent:'Cancel'}); cancel.addEventListener('click',closeModal);
   var up=el('button',{className:'primary',textContent:'Upload HSV'});
@@ -713,7 +727,7 @@ function openUpload(r){
     if(!queue.length){ showToast('Add at least one video',true); return; }
     if(!STG){ showToast('Storage not connected',true); return; }
     if(!DB){ showToast('Not connected to the database',true); return; }
-    up.disabled=true; cancel.disabled=true; progWrap.style.display='';
+    clearErr(); setLocked(true); progWrap.style.display='';
     var date=dateIn.value||todayISO(), pid=String(r.player_id||r._id||'');
     var existing=Array.isArray(r.hsv)?r.hsv.slice():[], added=[];
     function step(i){
@@ -727,7 +741,7 @@ function openUpload(r){
         .then(function(blob){ barC.set(1); progStatus.textContent='('+(i+1)+'/'+queue.length+') '+name+' \u2014 '+(blob.size/1048576).toFixed(1)+' MB, uploading\u2026'; return STG.upload(path,blob,function(p){ barU.set(p); }); })
         .then(function(url){ barU.set(1); added.push({id:'v'+Date.now()+'_'+i,name:name,title:item.base,angle:item.angle,date:date,url:url,path:path}); return step(i+1); });
     }
-    step(0).catch(function(e){ up.disabled=false; cancel.disabled=false; showToast('Upload failed: '+(e&&e.message||e),true); });
+    step(0).catch(function(e){ setLocked(false); var m=(e&&e.message||e); showErr('Upload failed: '+m); showToast('Upload failed',true); });
   });
   openModalNode(root);
 }
@@ -798,7 +812,18 @@ try {
     upload(path, blob, onProgress){
       return new Promise(function(resolve,reject){
         const task = uploadBytesResumable(sref(storage, path), blob, { contentType:'video/mp4' });
-        task.on('state_changed', function(s){ if(onProgress) onProgress(s.bytesTransferred/(s.totalBytes||1)); }, reject, function(){ getDownloadURL(task.snapshot.ref).then(resolve).catch(reject); });
+        let moved=false;
+        // watchdog: if not a single byte moves in 30s, the request is being silently blocked
+        // (almost always Storage CORS / Security-Rules / bucket not enabled) — fail loudly instead of hanging.
+        const watchdog=setTimeout(function(){
+          if(!moved){ try{ task.cancel(); }catch(_){}
+            reject(new Error('Upload did not start \u2014 0 bytes after 30s. This is almost always a Storage CORS rule, Security-Rules denial, or Storage not being enabled on the bucket. Open the browser console (F12) for the exact network error.'));
+          }
+        }, 30000);
+        task.on('state_changed',
+          function(s){ if(s.bytesTransferred>0) moved=true; if(onProgress) onProgress(s.bytesTransferred/(s.totalBytes||1)); },
+          function(err){ clearTimeout(watchdog); try{ console.error('HSV upload error:', err && (err.code||''), err); }catch(_){} reject(err); },
+          function(){ clearTimeout(watchdog); getDownloadURL(task.snapshot.ref).then(resolve).catch(reject); });
       });
     },
     remove(path){ return deleteObject(sref(storage, path)); }
