@@ -1,6 +1,7 @@
 [
   {
     "origin": [
+      "https://hsvcubs.netlify.app",
       "https://cubsentry.web.app",
       "https://cubsentry.firebaseapp.com",
       "http://localhost:5000",
@@ -9,8 +10,10 @@
     "method": ["GET", "PUT", "POST", "HEAD", "DELETE"],
     "responseHeader": [
       "Content-Type",
+      "Content-Length",
       "Content-Range",
       "Content-Disposition",
+      "Range",
       "Authorization",
       "X-Goog-Upload-Protocol",
       "X-Goog-Upload-Command",
@@ -18,7 +21,13 @@
       "X-Goog-Upload-Header-Content-Length",
       "X-Goog-Upload-Status",
       "X-Goog-Upload-URL",
-      "x-goog-resumable"
+      "x-goog-resumable",
+      "x-goog-meta-player_id",
+      "x-goog-meta-clip_id",
+      "x-goog-meta-title",
+      "x-goog-meta-angle",
+      "x-goog-meta-date",
+      "x-goog-meta-display_name"
     ],
     "maxAgeSeconds": 3600
   }

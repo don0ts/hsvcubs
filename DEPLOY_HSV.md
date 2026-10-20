@@ -1,5 +1,26 @@
 # CubSentry — server-side HSV transcode: deploy guide
 
+> **⚠ YOUR CURRENT ERROR — read this first.**
+> The console shows:
+> `Access to XMLHttpRequest ... blocked by CORS policy: Response to preflight
+> request doesn't pass access control check: It does not have HTTP ok status.`
+> from origin **`https://hsvcubs.netlify.app`**.
+>
+> This is 100% a Storage **CORS** problem, not a code bug. Your page is served
+> from Netlify, but the bucket's old CORS config only allowed
+> `cubsentry.web.app`, so the browser's preflight to the bucket is rejected and
+> the upload never starts. The `cors.json` in this bundle now includes
+> `https://hsvcubs.netlify.app`. Apply it:
+>
+> ```bash
+> gsutil cors set cors.json gs://cubsentry.firebasestorage.app
+> # verify it took:
+> gsutil cors get gs://cubsentry.firebasestorage.app
+> ```
+> (No `gsutil`? Install the Google Cloud SDK, or run the command from Cloud
+> Shell at https://console.cloud.google.com — pick the `cubsentry` project.)
+> After it applies, hard-refresh the page and upload again.
+
 The browser now uploads the **raw** clip only. A Cloud Function transcodes it to
 720p on the server, writes the final file, and adds it to the player's record.
 Nothing heavy runs in the browser anymore.
